@@ -123,8 +123,20 @@ class Faiss(Base):
         m = embedding_size // 4
         if embedding_size % 4 != 0:
             raise ValueError("embedding_size must be divisible by 4")
+
         factory = f"L2norm,OPQ{m}_{embedding_size},IVF{nlist},PQ{m}x8fs"
-        index = faiss.index_factory(embedding_size, factory, faiss.METRIC_INNER_PRODUCT)
+        try:
+            index = faiss.index_factory(
+                embedding_size, factory, faiss.METRIC_INNER_PRODUCT
+            )
+        except RuntimeError as e:  # pragma: no cover - depends on faiss build
+            if "could not parse" in str(e) or "index_ivf" in str(e):
+                fallback_factory = f"L2norm,OPQ{m}_{embedding_size},IVF{nlist},PQ{m}x8"
+                index = faiss.index_factory(
+                    embedding_size, fallback_factory, faiss.METRIC_INNER_PRODUCT
+                )
+            else:
+                raise
         if self.store_on_disk and not self.use_gpu:
             invlists_path = os.path.join(os.path.dirname(index_path), "ivfdata")
             invlists = faiss.OnDiskInvertedLists(

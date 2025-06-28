@@ -163,7 +163,7 @@ Refer to [HNSW documentation for more details](https://www.pinecone.io/learn/ser
 
 ### Faiss index
 
-As an alternative to Voyager, PyLate offers a Faiss-based HNSW index. It exposes the same interface so it can be used interchangeably with the retriever. You can enable GPU search by setting ``use_gpu=True`` when initializing the index (provided Faiss has been compiled with GPU support). Use ``store_on_disk=True`` to memory-map the index from disk rather than loading it entirely in RAM (ignored when ``use_gpu=True``).
+As an alternative to Voyager, PyLate offers a Faiss-based IVF-PQ index with an OPQ rotation. It exposes the same interface so it can be used interchangeably with the retriever. You can enable GPU search by setting ``use_gpu=True`` when initializing the index (provided Faiss has been compiled with GPU support). Use ``store_on_disk=True`` to memory-map the index from disk rather than loading it entirely in RAM (ignored when ``use_gpu=True``).
 
 ```python
 index = indexes.Faiss(

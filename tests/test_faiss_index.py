@@ -14,6 +14,8 @@ def test_faiss_index():
         index_folder=f"test_indexes_{random_hash}",
         index_name=f"colbert_{random_hash}",
         override=True,
+        embedding_size=128,
+        nlist=1,
         store_on_disk=True,
     )
 
@@ -51,6 +53,8 @@ def test_faiss_index():
         index_folder=f"test_indexes_{random_hash}",
         index_name=f"colbert_{random_hash}",
         override=False,
+        embedding_size=128,
+        nlist=1,
         store_on_disk=True,
     )
     results = index(queries_embeddings, k=2)

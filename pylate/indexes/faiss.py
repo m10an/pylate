@@ -35,7 +35,7 @@ def reshape_embeddings(
 
 
 class Faiss(Base):
-    """Faiss based index for multi-vector search using HNSW.
+    """Faiss based index for multi-vector search using an IVF-PQ index.
 
     Parameters
     ----------
@@ -43,6 +43,10 @@ class Faiss(Base):
         Whether to move the index to GPU. Requires faiss compiled with GPU support.
     gpu_id
         The GPU id to use when ``use_gpu`` is ``True``.
+    nlist
+        Number of IVF buckets (``IVF{nlist}``).
+    nprobe
+        Number of buckets to probe during search.
     store_on_disk
         Memory-map the index from disk instead of keeping it fully in RAM.
         This option has no effect when ``use_gpu=True``.
@@ -53,10 +57,9 @@ class Faiss(Base):
         index_folder: str = "indexes",
         index_name: str = "colbert",
         override: bool = False,
-        embedding_size: int = 128,
-        M: int = 64,
-        ef_construction: int = 200,
-        ef_search: int = 200,
+        embedding_size: int = 48,
+        nlist: int = 8192,
+        nprobe: int = 64,
         use_gpu: bool = False,
         gpu_id: int = 0,
         store_on_disk: bool = False,
@@ -64,7 +67,7 @@ class Faiss(Base):
         if faiss is None:
             raise ImportError("faiss library is required to use the Faiss index")
 
-        self.ef_search = ef_search
+        self.nprobe = nprobe
         self.use_gpu = use_gpu
         self.gpu_id = gpu_id
         self.store_on_disk = store_on_disk
@@ -85,8 +88,7 @@ class Faiss(Base):
         self.index_cpu = self._create_collection(
             index_path=self.index_path,
             embedding_size=embedding_size,
-            M=M,
-            ef_construction=ef_construction,
+            nlist=nlist,
             override=override,
         )
         if self.store_on_disk and not self.use_gpu:
@@ -108,10 +110,9 @@ class Faiss(Base):
         self,
         index_path: str,
         embedding_size: int,
-        M: int,
-        ef_construction: int,
+        nlist: int,
         override: bool,
-    ):
+    ) -> faiss.Index:
         if os.path.exists(index_path) and not override:
             if self.store_on_disk and not self.use_gpu:
                 return faiss.read_index(index_path, faiss.IO_FLAG_MMAP)
@@ -119,9 +120,17 @@ class Faiss(Base):
         if os.path.exists(index_path):
             os.remove(index_path)
 
-        index = faiss.IndexHNSWFlat(embedding_size, M, faiss.METRIC_INNER_PRODUCT)
-        index.hnsw.efConstruction = ef_construction
-        index.hnsw.efSearch = self.ef_search
+        m = embedding_size // 4
+        if embedding_size % 4 != 0:
+            raise ValueError("embedding_size must be divisible by 4")
+        factory = f"L2norm,OPQ{m}_{embedding_size},IVF{nlist},PQ{m}x8fs"
+        index = faiss.index_factory(embedding_size, factory, faiss.METRIC_INNER_PRODUCT)
+        if self.store_on_disk and not self.use_gpu:
+            invlists_path = os.path.join(os.path.dirname(index_path), "ivfdata")
+            invlists = faiss.OnDiskInvertedLists(
+                index.nlist, index.code_size, invlists_path
+            )
+            index.replace_invlists(invlists)
 
         faiss.write_index(index, index_path)
 
@@ -173,18 +182,21 @@ class Faiss(Base):
         ):
             flat_embeddings = np.vstack(doc_emb_batch).astype("float32")
             faiss.normalize_L2(flat_embeddings)
-            start_id = self.index_cpu.ntotal
-            self.index_cpu.add(flat_embeddings)
-            embedding_ids = np.arange(start_id, start_id + len(flat_embeddings))
+            if not self.index_cpu.is_trained:
+                self.index_cpu.train(flat_embeddings)
 
-            total = 0
+            ids = []
+            offset = 0
             for doc_id, embeddings in zip(doc_ids_batch, doc_emb_batch):
-                emb_ids = embedding_ids[total : total + len(embeddings)]
-                documents_ids_to_embeddings[doc_id] = emb_ids.tolist()
-                embeddings_to_documents_ids.update(
-                    dict.fromkeys(emb_ids.tolist(), doc_id)
-                )
-                total += len(embeddings)
+                base_id = int(doc_id) << 9
+                emb_ids = [base_id | i for i in range(len(embeddings))]
+                documents_ids_to_embeddings[doc_id] = emb_ids
+                embeddings_to_documents_ids.update(dict.fromkeys(emb_ids, doc_id))
+                ids.extend(emb_ids)
+                offset += len(embeddings)
+
+            ids = np.array(ids, dtype="int64")
+            self.index_cpu.add_with_ids(flat_embeddings, ids)
 
         documents_ids_to_embeddings.commit()
         embeddings_to_documents_ids.commit()
@@ -243,15 +255,8 @@ class Faiss(Base):
         flat_queries = np.vstack(queries_embeddings).astype("float32")
         faiss.normalize_L2(flat_queries)
 
-        if hasattr(self.index, "hnsw"):
-            self.index.hnsw.efSearch = self.ef_search
-        else:
-            try:
-                faiss.ParameterSpace().set_index_parameter(
-                    self.index, "efSearch", self.ef_search
-                )
-            except Exception:
-                pass
+        if hasattr(self.index, "nprobe"):
+            self.index.nprobe = self.nprobe
         distances, indices = self.index.search(flat_queries, k)
 
         documents = [

@@ -1,6 +1,6 @@
 # Faiss
 
-Faiss based index for approximate nearest neighbour search using an HNSW index. The interface mirrors the one of the Voyager index so that it can be used interchangeably for candidate generation and reranking. When ``use_gpu=True`` the index is moved to GPU (if available) for faster search. Set ``store_on_disk=True`` to memory-map the index instead of keeping it fully in RAM (ignored when ``use_gpu=True``).
+Faiss based index for approximate nearest neighbour search using an IVF-PQ index with an OPQ rotation. The interface mirrors the one of the Voyager index so that it can be used interchangeably for candidate generation and reranking. When ``use_gpu=True`` the index is moved to GPU (if available) for faster search. Set ``store_on_disk=True`` to memory-map the index instead of keeping it fully in RAM (ignored when ``use_gpu=True``).
 
 ```python
 >>> from pylate import indexes, models

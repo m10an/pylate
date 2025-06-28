@@ -330,6 +330,7 @@ index = indexes.Faiss(
     index_name="index",
     override=True,
     embedding_size=128,
+    store_on_disk=False,
 )
 
 retriever = retrieve.ColBERT(index=index)

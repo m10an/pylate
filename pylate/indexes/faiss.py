@@ -43,6 +43,9 @@ class Faiss(Base):
         Whether to move the index to GPU. Requires faiss compiled with GPU support.
     gpu_id
         The GPU id to use when ``use_gpu`` is ``True``.
+    store_on_disk
+        Memory-map the index from disk instead of keeping it fully in RAM.
+        This option has no effect when ``use_gpu=True``.
     """
 
     def __init__(
@@ -56,6 +59,7 @@ class Faiss(Base):
         ef_search: int = 200,
         use_gpu: bool = False,
         gpu_id: int = 0,
+        store_on_disk: bool = False,
     ) -> None:
         if faiss is None:
             raise ImportError("faiss library is required to use the Faiss index")
@@ -63,6 +67,7 @@ class Faiss(Base):
         self.ef_search = ef_search
         self.use_gpu = use_gpu
         self.gpu_id = gpu_id
+        self.store_on_disk = store_on_disk
         self.gpu_resources = None
         if not os.path.exists(index_folder):
             os.makedirs(index_folder)
@@ -84,9 +89,14 @@ class Faiss(Base):
             ef_construction=ef_construction,
             override=override,
         )
-        self.index = self.index_cpu
-        if self.use_gpu:
-            self._move_to_gpu()
+        if self.store_on_disk and not self.use_gpu:
+            faiss.write_index(self.index_cpu, self.index_path)
+            self.index = faiss.read_index(self.index_path, faiss.IO_FLAG_MMAP)
+            self.index_cpu = None
+        else:
+            self.index = self.index_cpu
+            if self.use_gpu:
+                self._move_to_gpu()
 
     def _load_documents_ids_to_embeddings(self) -> SqliteDict:
         return SqliteDict(self.documents_ids_to_embeddings_path, outer_stack=False)
@@ -103,6 +113,8 @@ class Faiss(Base):
         override: bool,
     ):
         if os.path.exists(index_path) and not override:
+            if self.store_on_disk and not self.use_gpu:
+                return faiss.read_index(index_path, faiss.IO_FLAG_MMAP)
             return faiss.read_index(index_path)
         if os.path.exists(index_path):
             os.remove(index_path)
@@ -143,6 +155,9 @@ class Faiss(Base):
         if isinstance(documents_ids, str):
             documents_ids = [documents_ids]
 
+        if self.store_on_disk and self.index_cpu is None:
+            self.index_cpu = faiss.read_index(self.index_path)
+
         documents_embeddings = reshape_embeddings(documents_embeddings)
 
         documents_ids_to_embeddings = self._load_documents_ids_to_embeddings()
@@ -176,15 +191,23 @@ class Faiss(Base):
         documents_ids_to_embeddings.close()
         embeddings_to_documents_ids.close()
         if self.use_gpu:
+            faiss.write_index(self.index_cpu, self.index_path)
             self.index = faiss.index_cpu_to_gpu(
                 self.gpu_resources, self.gpu_id, self.index_cpu
             )
+        elif self.store_on_disk:
+            faiss.write_index(self.index_cpu, self.index_path)
+            self.index = faiss.read_index(self.index_path, faiss.IO_FLAG_MMAP)
+            self.index_cpu = None
         else:
             self.index = self.index_cpu
-        faiss.write_index(self.index_cpu, self.index_path)
+            faiss.write_index(self.index_cpu, self.index_path)
         return self
 
     def remove_documents(self, documents_ids: List[str]) -> "Faiss":
+        if self.store_on_disk and self.index_cpu is None:
+            self.index_cpu = faiss.read_index(self.index_path)
+
         documents_ids_to_embeddings = self._load_documents_ids_to_embeddings()
         embeddings_to_documents_ids = self._load_embeddings_to_documents_ids()
         for doc_id in documents_ids:
@@ -198,12 +221,17 @@ class Faiss(Base):
         documents_ids_to_embeddings.close()
         embeddings_to_documents_ids.close()
         if self.use_gpu:
+            faiss.write_index(self.index_cpu, self.index_path)
             self.index = faiss.index_cpu_to_gpu(
                 self.gpu_resources, self.gpu_id, self.index_cpu
             )
+        elif self.store_on_disk:
+            faiss.write_index(self.index_cpu, self.index_path)
+            self.index = faiss.read_index(self.index_path, faiss.IO_FLAG_MMAP)
+            self.index_cpu = None
         else:
             self.index = self.index_cpu
-        faiss.write_index(self.index_cpu, self.index_path)
+            faiss.write_index(self.index_cpu, self.index_path)
         return self
 
     def __call__(self, queries_embeddings: np.ndarray | torch.Tensor, k: int = 10):
@@ -244,6 +272,9 @@ class Faiss(Base):
     def get_documents_embeddings(
         self, document_ids: List[List[str]]
     ) -> List[List[List[float]]]:
+        if self.store_on_disk and self.index_cpu is None:
+            self.index_cpu = faiss.read_index(self.index_path)
+
         documents_ids_to_embeddings = self._load_documents_ids_to_embeddings()
         embedding_ids_structure = [
             [documents_ids_to_embeddings[doc_id] for doc_id in doc_group]

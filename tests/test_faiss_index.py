@@ -14,6 +14,7 @@ def test_faiss_index():
         index_folder=f"test_indexes_{random_hash}",
         index_name=f"colbert_{random_hash}",
         override=True,
+        store_on_disk=True,
     )
 
     model = models.ColBERT(
@@ -50,6 +51,7 @@ def test_faiss_index():
         index_folder=f"test_indexes_{random_hash}",
         index_name=f"colbert_{random_hash}",
         override=False,
+        store_on_disk=True,
     )
     results = index(queries_embeddings, k=2)
     assert isinstance(results, dict)

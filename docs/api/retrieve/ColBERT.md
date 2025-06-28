@@ -38,6 +38,7 @@ ColBERT retriever.
     ...     index_name="colbert",
     ...     override=True,
     ...     embedding_size=128,
+    ...     store_on_disk=False,
     ... )
 
 >>> index = index.add_documents(

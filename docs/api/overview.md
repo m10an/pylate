@@ -24,6 +24,7 @@
 ## indexes
 
 - [Voyager](../indexes/Voyager)
+- [Faiss](../indexes/Faiss)
 
 ## losses
 

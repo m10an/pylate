@@ -316,7 +316,7 @@ queries = Dataset.from_list(mapping=queries)
 
 ## Retrieve
 
-PyLate allows easy retrieval of top documents for a given query set using the trained ColBERT model and [PLAID](https://arxiv.org/abs/2205.09707) index, simply load the model and init the index:
+PyLate allows easy retrieval of top documents for a given query set using the trained ColBERT model and an index such as Faiss or [PLAID](https://arxiv.org/abs/2205.09707), simply load the model and init the index:
 
 ```python
 from pylate import indexes, models, retrieve
@@ -325,10 +325,11 @@ model = models.ColBERT(
     model_name_or_path="lightonai/GTE-ModernColBERT-v1",
 )
 
-index = indexes.PLAID(
+index = indexes.Faiss(
     index_folder="pylate-index",
     index_name="index",
     override=True,
+    embedding_size=128,
 )
 
 retriever = retrieve.ColBERT(index=index)
@@ -355,7 +356,7 @@ documents_embeddings = model.encode(
     show_progress_bar=True,
 )
 
-# Add the documents ids and embeddings to the PLAID index
+# Add the documents ids and embeddings to the Faiss index
 index.add_documents(
     documents_ids=documents_ids,
     documents_embeddings=documents_embeddings,

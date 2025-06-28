@@ -6,7 +6,7 @@ ColBERT retriever.
 
 ## Parameters
 
-- **index** (*[indexes.Voyager](../../indexes/Voyager)*)
+- **index** (*[indexes.Voyager](../../indexes/Voyager)* or *[indexes.Faiss](../../indexes/Faiss)*)
 
 
 
@@ -33,12 +33,13 @@ ColBERT retriever.
 ...     is_query=False,
 ... )
 
->>> index = indexes.Voyager(
-...     index_folder="test_indexes",
-...     index_name="colbert",
-...     override=True,
-...     embedding_size=128,
-... )
+>>> index = indexes.Faiss(
+    ...     index_folder="test_indexes",
+    ...     index_name="colbert",
+    ...     override=True,
+    ...     embedding_size=128,
+    ...     store_on_disk=False,
+    ... )
 
 >>> index = index.add_documents(
 ...     documents_ids=documents_ids,

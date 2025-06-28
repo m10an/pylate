@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import torch
 
-from ..indexes import PLAID, Voyager
+from ..indexes import PLAID, Faiss, Voyager
 from ..rank import rerank
 from ..utils import iter_batch
 
@@ -42,12 +42,12 @@ class ColBERT:
     ...     is_query=False,
     ... )
 
-    >>> index = indexes.Voyager(
-    ...     index_folder="test_indexes",
-    ...     index_name="colbert",
-    ...     override=True,
-    ...     embedding_size=128,
-    ... )
+    >>> index = indexes.Faiss(
+        ...     index_folder="test_indexes",
+        ...     index_name="colbert",
+        ...     override=True,
+        ...     embedding_size=128,
+        ... )
 
     >>> index = index.add_documents(
     ...     documents_ids=documents_ids,
@@ -88,7 +88,7 @@ class ColBERT:
 
     """
 
-    def __init__(self, index: Voyager | PLAID) -> None:
+    def __init__(self, index: Voyager | PLAID | Faiss) -> None:
         self.index = index
 
     def retrieve(
@@ -127,7 +127,7 @@ class ColBERT:
                 )
                 k_token = k
             reranking_results = []
-            if isinstance(self.index, Voyager):
+            if isinstance(self.index, (Voyager, Faiss)):
                 for queries_embeddings_batch in iter_batch(
                     queries_embeddings,
                     batch_size=batch_size,

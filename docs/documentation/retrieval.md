@@ -161,6 +161,21 @@ The retrieval is not an exact search, which mean that certain parameters can aff
 
 Refer to [HNSW documentation for more details](https://www.pinecone.io/learn/series/faiss/hnsw/).
 
+### Faiss index
+
+As an alternative to Voyager, PyLate offers a Faiss-based IVF-PQ index with an OPQ rotation. It exposes the same interface so it can be used interchangeably with the retriever. You can enable GPU search by setting ``use_gpu=True`` when initializing the index (provided Faiss has been compiled with GPU support). Use ``store_on_disk=True`` to memory-map the index from disk rather than loading it entirely in RAM (ignored when ``use_gpu=True``).
+
+```python
+index = indexes.Faiss(
+    index_folder="pylate-index",
+    index_name="index",
+    override=True,
+    embedding_size=128,
+    use_gpu=True,
+    store_on_disk=False,
+)
+```
+
 ???+ info
     Another parameter that significantly influences search quality is **k_token**. This parameter determines the **number of neighbors retrieved for each query token**. Higher values of k_token will consider more candidates, leading to better results but at the cost of slower search performance.
 
